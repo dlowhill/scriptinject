@@ -7,6 +7,8 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local ServerStorage = game:GetService("ServerStorage")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ═══════════════════════════════════════════════════════════════
 -- ГЛОБАЛЬНЫЕ ДАННЫЕ
@@ -42,12 +44,12 @@ end
 
 local function createRoundedFrame(parent, size, position, color, transparency)
     local frame = Instance.new("Frame")
-    frame.Size = size or UDim2.new(0, 350, 0, 450) 
-    frame.Position = position or UDim2.new(0.5, -175, 0.5, -225)
+    frame.Size = size or UDim2.new(0, 350, 0, 500) -- Высота увеличена до 500 под 5 кнопок
+    frame.Position = position or UDim2.new(0.5, -175, 0.5, -250)
     frame.BackgroundColor3 = color or Color3.fromRGB(25, 25, 35)
     frame.BackgroundTransparency = transparency or 0.15
     frame.BorderSizePixel = 0
-    frame.Parent = parent
+    frame.Parent = frame
     
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 12)
@@ -152,17 +154,25 @@ local function createGUI(player)
     inputCorner.CornerRadius = UDim.new(0, 8)
     inputCorner.Parent = speedInput
     
+    -- Кнопка 1: Скорость
     local speedButton = createRoundedButton(mainFrame, "🚀 Установить скорость", Color3.fromRGB(255, 100, 100), 
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 110))
     
+    -- Кнопка 2: Полёт
     local flyButton = createRoundedButton(mainFrame, "🕊️ Включить полет", Color3.fromRGB(80, 150, 255),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 165))
         
+    -- Кнопка 3: Массовая вырубка леса
     local chopButton = createRoundedButton(mainFrame, "🪓 Вырубить весь лес", Color3.fromRGB(230, 140, 10),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 220))
         
+    -- Кнопка 4: Магнит ресурсов
     local magnetButton = createRoundedButton(mainFrame, "🧲 Притянуть весь лут", Color3.fromRGB(40, 180, 130),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 275))
+
+    -- Кнопка 5: Пропуск дня (НОВАЯ)
+    local skipDayButton = createRoundedButton(mainFrame, "⌛ Пропустить день", Color3.fromRGB(140, 90, 210),
+        UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 330))
     
     local speedDisplay = Instance.new("TextLabel")
     speedDisplay.Size = UDim2.new(0.8, 0, 0, 25)
@@ -183,6 +193,7 @@ local function createGUI(player)
         flyButton = flyButton,
         chopButton = chopButton,
         magnetButton = magnetButton,
+        skipDayButton = skipDayButton,
         speedDisplay = speedDisplay,
         closeButton = closeButton,
         background = background
@@ -245,42 +256,44 @@ local function createGUI(player)
         end
     end 
 
-    -- ФУНКЦИЯ 3: Вырубка леса С ИММУНИТЕТОМ для Материнского Дерева
     local function chopAllTrees()
         local map = workspace:FindFirstChild("Map")
-        local mapLandmarks = map and (map:FindFirstChild("Landmarks") or map:FindFirstChild("Ground") or map)
-        if not mapLandmarks then return end
+local mapLandmarks = map and (map:FindFirstChild("Landmarks") or map:FindFirstChild("Ground") or map)
+
+if not mapLandmarks then
+    return
+end
+
+chopButton.Text = "⏳ Вырубка..."
+chopButton.BackgroundColor3 = Color3.fromRGB(150, 100, 20)
+
+for _, object in ipairs(mapLandmarks:GetDescendants()) do
+    if object:IsA("Model") then
+        local objName = object.Name:lower()
         
-        chopButton.Text = "⏳ Вырубка..."
-        chopButton.BackgroundColor3 = Color3.fromRGB(150, 100, 20)
-        
-        for _, object in ipairs(mapLandmarks:GetDescendants()) do
-            if object:IsA("Model") then
-                local objName = object.Name:lower()
-                -- ЗАЩИТА: Игнорируем гигантские, квестовые и материнские деревья (Mother, Giant, Fairy)
-if not objName:find("mother") and not objName:find("giant") and not objName:find("fairy") and not objName:find("house") then
-    if object.Name == "Small Tree" or object.Name:find("TreeBig") or (objName:find("tree") and not objName:find("leaf")) then
-        task.spawn(function()
-            local module = ServerStorage:FindFirstChild("LandmarkModules") and ServerStorage.LandmarkModules:FindFirstChild(object.Name)
-            
-            if module then
-                pcall(function()
-                    local treeLogic = require(module)
+        if not objName:find("mother") and not objName:find("giant") and not objName:find("fairy") and not objName:find("house") then
+            if object.Name == "Small Tree" or object.Name:find("TreeBig") or (objName:find("tree") and not objName:find("leaf")) then
+                task.spawn(function()
+                    local module = ServerStorage:FindFirstChild("LandmarkModules") and ServerStorage.LandmarkModules:FindFirstChild(object.Name)
                     
-                    if typeof(treeLogic) == "function" then
-                        treeLogic(object, 999999)
-                    elseif typeof(treeLogic) == "table" and treeLogic.Break then
-                        treeLogic:Break(object)
+                    if module then
+                        pcall(function()
+                            local treeLogic = require(module)
+                            
+                            if typeof(treeLogic) == "function" then
+                                treeLogic(object, 999999)
+                            elseif typeof(treeLogic) == "table" and treeLogic.Break then
+                                treeLogic:Break(object)
+                            end
+                        end)
                     end
+                    
+                    object:SetAttribute("Health", 0)
+                    object:Destroy()
                 end)
             end
-            
-            object:SetAttribute("Health", 0)
-            object:Destroy()
-        end)
+        end
     end
-end
-end
 end
 
 task.wait(0.5)
@@ -291,7 +304,6 @@ chopButton.Text = "🪓 Вырубить весь лес"
 chopButton.BackgroundColor3 = Color3.fromRGB(230, 140, 10)
 end
 
--- ФУНКЦИЯ 4: Магнит ресурсов С ИММУНИТЕТОМ для построек
 local function magnetAllLoot()
     local character = player.Character
     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
@@ -310,7 +322,6 @@ local function magnetAllLoot()
         local name = item.Name:lower()
         
         if item:IsA("Model") or item:IsA("BasePart") then
-            -- ЗАЩИТА: игнорируем элементы карты, лагерь, домики и квесты
             if not item:IsDescendantOf(workspace.Map) and not name:find("camp") and not name:find("house") and not name:find("tent") and not name:find("fire") and not name:find("mother") and not name:find("tree") then
                 if name:find("log") or name:find("wood") or name:find("stick") or name:find("sapling") or name:find("berry") or name:find("item") or (item.Parent and item.Parent.Name == "Items") then
                     if not item:FindFirstChild("Leave") and not item:FindFirstChild("Trunk") and item ~= rootPart and not item:IsDescendantOf(character) then
@@ -337,6 +348,65 @@ local function magnetAllLoot()
     magnetButton.BackgroundColor3 = Color3.fromRGB(40, 180, 130)
 end
 
+-- ФУНКЦИЯ 5: Моментальный пропуск дней и перекрутка игрового времени
+local function skipOneDay()
+    skipDayButton.Text = "⏳ Перемотка времени..."
+    skipDayButton.BackgroundColor3 = Color3.fromRGB(100, 60, 160)
+    
+    -- 1. Крутим часы в Lighting, чтобы мгновенно наступило утро следующего дня
+    pcall(function()
+        Lighting.ClockTime = 6 -- Устанавливаем 6 часов утра
+    end)
+    
+    -- 2. Сканируем глобальные атрибуты игры и прибавляем день
+    local success = false
+    
+    pcall(function()
+        -- Ищем во всех возможных корневых местах, где игра хранит номер дня
+        local targets = {workspace, ReplicatedStorage, ServerStorage}
+        
+        for _, target in ipairs(targets) do
+            if target:GetAttribute("Day") then
+                target:SetAttribute("Day", target:GetAttribute("Day") + 1)
+                success = true
+            elseif target:GetAttribute("Progress") then
+                target:SetAttribute("Progress", 1)
+                success = true
+            end
+        end
+        
+        -- Ищем IntValue / NumberValue объекты с названиями Day или Time
+        for _, val in ipairs(workspace:GetDescendants()) do
+            if (val:IsA("IntValue") or val:IsA("NumberValue")) and (val.Name == "Day" or val.Name == "CurrentDay") then
+                val.Value = val.Value + 1
+                success = true
+            end
+        end
+        
+        for _, val in ipairs(ReplicatedStorage:GetDescendants()) do
+            if (val:IsA("IntValue") or val:IsA("NumberValue")) and (val.Name == "Day" or val.Name == "CurrentDay") then
+                val.Value = val.Value + 1
+                success = true
+            end
+        end
+    end)
+    
+    task.wait(0.5)
+    
+    if success then
+        skipDayButton.Text = "✅ День успешно пропущен!"
+        skipDayButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+    else
+        -- Если игра использует сугубо внутренние скрипты, время суток всё равно сдвинется на утро
+        skipDayButton.Text = "🌅 Время сдвинуто на утро!"
+        skipDayButton.BackgroundColor3 = Color3.fromRGB(0, 160, 200)
+    end
+    
+    task.wait(1)
+    skipDayButton.Text = "⌛ Пропустить день"
+    skipDayButton.BackgroundColor3 = Color3.fromRGB(140, 90, 210)
+end
+
 speedButton.MouseButton1Click:Connect(function()
     local speedValue = speedInput.Text
     
@@ -358,6 +428,7 @@ end)
 flyButton.MouseButton1Click:Connect(toggleFly)
 chopButton.MouseButton1Click:Connect(chopAllTrees)
 magnetButton.MouseButton1Click:Connect(magnetAllLoot)
+skipDayButton.MouseButton1Click:Connect(skipOneDay)
 
 closeButton.MouseButton1Click:Connect(function()
     closeGUI(player)
@@ -404,7 +475,7 @@ local function openGUI(player)
     
     TweenService:Create(mainFrame, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         BackgroundTransparency = 0.15,
-        Size = UDim2.new(0, 350, 0, 450)
+        Size = UDim2.new(0, 350, 0, 500)
     }):Play()
     
     if wmButton then
@@ -565,7 +636,7 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 -- ═══════════════════════════════════════════════════════════════
--- ИДЕАЛЬНЫЙ ПОЛЕТ: Персонаж летает ВЕРТИКАЛЬНО и не падает
+-- ИДЕАЛЬНЫЙ ПОЛЕТ
 -- ═══════════════════════════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
     for player, isFlying in pairs(flyingPlayers) do
@@ -575,7 +646,6 @@ RunService.Heartbeat:Connect(function()
             local rootPart = character and character:FindFirstChild("HumanoidRootPart")
             
             if humanoid and rootPart then
-                -- Удерживаем персонажа в вертикальной позе через стейт физики
                 humanoid:ChangeState(Enum.HumanoidStateType.Physics)
                 
                 local speed = flySpeeds[player] or 40
@@ -618,10 +688,8 @@ RunService.Heartbeat:Connect(function()
                 if moveDirection.Magnitude > 0 then
                     moveDirection = moveDirection.Unit * speed
                     rootPart.Velocity = moveDirection
-                    -- Поворачиваем только по горизонтали, чтобы тело не наклонялось вниз
                     rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + Vector3.new(moveDirection.X, 0, moveDirection.Z))
                 else
-                    -- Зависание на месте без изменения позы
                     rootPart.Velocity = Vector3.new(0, 0.1, 0)
                 end
             end
