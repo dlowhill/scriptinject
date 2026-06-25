@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════
--- АДМИН-ПАНЕЛЬ WISPMANE ДЛЯ 99 НОЧЕЙ В ЛЕСУ
+-- ОФИЦИАЛЬНАЯ АДМИН-ПАНЕЛЬ WISPMANE ДЛЯ 99 NIGHTS IN THE FOREST
 -- ═══════════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -42,7 +42,7 @@ end
 
 local function createRoundedFrame(parent, size, position, color, transparency)
     local frame = Instance.new("Frame")
-    frame.Size = size or UDim2.new(0, 350, 0, 450) -- Увеличен размер под 4 кнопки
+    frame.Size = size or UDim2.new(0, 350, 0, 450) 
     frame.Position = position or UDim2.new(0.5, -175, 0.5, -225)
     frame.BackgroundColor3 = color or Color3.fromRGB(25, 25, 35)
     frame.BackgroundTransparency = transparency or 0.15
@@ -94,7 +94,6 @@ local function createGUI(player)
     shadow.ImageTransparency = 0.5
     shadow.Parent = mainFrame
     
-    -- Название изменено на WispMane
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 40)
     title.Position = UDim2.new(0, 0, 0, 0)
@@ -113,7 +112,6 @@ local function createGUI(player)
     divider.BorderSizePixel = 0
     divider.Parent = mainFrame
     
-    -- Кнопка закрытия справа сверху
     local closeButton = Instance.new("ImageButton")
     closeButton.Size = UDim2.new(0, 30, 0, 30)
     closeButton.Position = UDim2.new(1, -40, 0, 8)
@@ -137,7 +135,6 @@ local function createGUI(player)
     closeText.TextYAlignment = Enum.TextYAlignment.Center
     closeText.Parent = closeButton
     
-    -- Поле ввода скорости
     local speedInput = Instance.new("TextBox")
     speedInput.Size = UDim2.new(0.8, 0, 0, 38)
     speedInput.Position = UDim2.new(0.1, 0, 0, 60)
@@ -155,19 +152,15 @@ local function createGUI(player)
     inputCorner.CornerRadius = UDim.new(0, 8)
     inputCorner.Parent = speedInput
     
-    -- Кнопка 1: Установка скорости
     local speedButton = createRoundedButton(mainFrame, "🚀 Установить скорость", Color3.fromRGB(255, 100, 100), 
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 110))
     
-    -- Кнопка 2: Полёт
     local flyButton = createRoundedButton(mainFrame, "🕊️ Включить полет", Color3.fromRGB(80, 150, 255),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 165))
         
-    -- Кнопка 3: Мгновенная массовая вырубка
     local chopButton = createRoundedButton(mainFrame, "🪓 Вырубить весь лес", Color3.fromRGB(230, 140, 10),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 220))
         
-    -- Кнопка 4: Магнит лута (притянуть все палки)
     local magnetButton = createRoundedButton(mainFrame, "🧲 Притянуть весь лут", Color3.fromRGB(40, 180, 130),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 275))
     
@@ -234,7 +227,6 @@ local function createGUI(player)
             local rootPart = character:FindFirstChild("HumanoidRootPart")
             if rootPart then
                 rootPart.Velocity = Vector3.new(0, 0, 0)
-                rootPart.Anchored = false
             end
             humanoid.PlatformStand = false
             humanoid.Sit = false
@@ -254,29 +246,39 @@ local function createGUI(player)
         end
     end 
 
-    -- Скрипт Логики Локальной Вырубки Леса
+    -- ФУНКЦИЯ 3: Идеальная вырубка всего леса с активацией дропа брёвен
     local function chopAllTrees()
-        local mapLandmarks = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Landmarks")
+        local map = workspace:FindFirstChild("Map")
+        local mapLandmarks = map and (map:FindFirstChild("Landmarks") or map:FindFirstChild("Ground") or map)
         if not mapLandmarks then return end
         
         chopButton.Text = "⏳ Вырубка..."
         chopButton.BackgroundColor3 = Color3.fromRGB(150, 100, 20)
-        for _, object in ipairs(mapLandmarks:GetChildren()) do
-    if object:IsA("Model") and (object.Name == "Small Tree" or object.Name:find("TreeBig")) then
-        task.spawn(function()
-            -- Безопасно уничтожаем дерево, имитируя работу LandmarkModules
-            local module = ServerStorage:FindFirstChild("LandmarkModules") and ServerStorage.LandmarkModules:FindFirstChild(object.Name)
-            
-            if module then
-                pcall(function()
-                    require(module)(object)
-                end)
-            end
-            
-            -- Мгновенно ломаем дерево, чтобы DropHandler выплюнул палки
-            object:Destroy()
-        end)
-    end
+        
+        -- Проходим по всем объектам карты, включая глубоко вложенные чанки
+        for _, object in ipairs(mapLandmarks:GetDescendants()) do
+        if object:IsA("Model") and (object.Name == "Small Tree" or object.Name:find("Tree") or object.Name:find("Oak")) then
+    task.spawn(function()
+        -- Получаем доступ к серверному модулю здоровья дерева
+        local module = ServerStorage:FindFirstChild("LandmarkModules") and ServerStorage.LandmarkModules:FindFirstChild(object.Name)
+        
+        if module then
+            pcall(function()
+                local treeLogic = require(module)
+                -- Имитируем сокрушительный удар топора админа, чтобы сработал DropHandler
+                if typeof(treeLogic) == "function" then
+                    treeLogic(object, 999999)
+                elseif typeof(treeLogic) == "table" and treeLogic.Break then
+                    treeLogic:Break(object)
+                end
+            end)
+        end
+        
+        -- Принудительно обнуляем здоровье через атрибуты игры и убираем пустышку
+        object:SetAttribute("Health", 0)
+        object:Destroy()
+    end)
+end
 end
 
 task.wait(0.5)
@@ -287,13 +289,12 @@ chopButton.Text = "🪓 Вырубить весь лес"
 chopButton.BackgroundColor3 = Color3.fromRGB(230, 140, 10)
 end
 
--- Логика Магнита Лута (Сбор палок/бревен)
+-- ФУНКЦИЯ 4: Идеальный тотальный магнит брёвен и ресурсов по всей карте
 local function magnetAllLoot()
-    local itemsFolder = workspace:FindFirstChild("Items")
     local character = player.Character
     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
     
-    if not itemsFolder or not rootPart then
+    if not rootPart then
         return
     end
     
@@ -303,26 +304,31 @@ local function magnetAllLoot()
     local targetPosition = rootPart.Position + Vector3.new(0, -2, 0)
     local count = 0
     
-    for _, item in ipairs(itemsFolder:GetChildren()) do
-        local itemRoot = item:FindFirstChild("Handle") or item:IsA("BasePart") and item or item:FindFirstChild("PrimaryPart")
+    -- Глобальный поиск брёвен, палок и лута во всех папках
+    for _, item in ipairs(workspace:GetDescendants()) do
+        local name = item.Name:lower()
         
-        if itemRoot then
-            pcall(function()
-                if itemRoot:IsA("BasePart") then
-                    itemRoot.Anchored = true
-                    itemRoot.CFrame = CFrame.new(targetPosition)
-                    itemRoot.Anchored = false
-                elseif item:IsA("Model") then
-                    item:PivotTo(CFrame.new(targetPosition))
+        if item:IsA("Model") or item:IsA("BasePart") then
+            -- Фильтруем названия по ключевым ресурсам официальной игры
+            if name:find("log") or name:find("wood") or name:find("stick") or name:find("sapling") or name:find("berry") or name:find("item") or (item.Parent and item.Parent.Name == "Items") then
+                -- Защита от случайного притягивания живых деревьев или самого себя
+                if not item:FindFirstChild("Leave") and not item:FindFirstChild("Trunk") and item ~= rootPart and not item:IsDescendantOf(character) then
+                    pcall(function()
+                        if item:IsA("BasePart") then
+                            item.CFrame = CFrame.new(targetPosition)
+                        elseif item:IsA("Model") then
+                            item:PivotTo(CFrame.new(targetPosition))
+                        end
+                        
+                        count += 1
+                    end)
                 end
-                
-                count += 1
-            end)
+            end
         end
     end
     
     task.wait(0.4)
-    magnetButton.Text = "✅ Собрано объектов: " .. tostring(count)
+    magnetButton.Text = "✅ Собрано ресурсов: " .. tostring(count)
     magnetButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
     task.wait(1)
     magnetButton.Text = "🧲 Притянуть весь лут"
@@ -371,7 +377,7 @@ return guiData
 end
 
 -- ═══════════════════════════════════════════════════════════════
--- ФУНКЦИИ ОТКРЫТИЯ/ЗАКРЫТИЯ GUI (Починено)
+-- ФУНКЦИИ ОТКРЫТИЯ/ЗАКРЫТИЯ GUI
 -- ═══════════════════════════════════════════════════════════════
 local function openGUI(player)
     local guiData = playerGUIs[player]
@@ -448,7 +454,7 @@ closeGUI = function(player)
 end
 
 -- ═══════════════════════════════════════════════════════════════
--- СОЗДАНИЕ КНОПКИ WM (Починено открытие)
+-- СОЗДАНИЕ КНОПКИ WM (Позиция по центру экрана при запуске)
 -- ═══════════════════════════════════════════════════════════════
 local dragging = false
 local dragStart = nil
@@ -465,7 +471,7 @@ local function createWMButton(player)
     local wmButton = Instance.new("ImageButton")
     wmButton.Name = "WMButton"
     wmButton.Size = UDim2.new(0, 70, 0, 70)
-    wmButton.Position = UDim2.new(0.85, 0, 0.15, 0) -- Удобная позиция сбоку
+    wmButton.Position = UDim2.new(0.5, -35, 0.5, -35)
     wmButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
     wmButton.BackgroundTransparency = 0.2
     wmButton.ZIndex = 100
@@ -557,7 +563,7 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 -- ═══════════════════════════════════════════════════════════════
--- ИДЕАЛЬНЫЙ ЦИКЛ ПОЛЕТА БЕЗ ТРЯСКИ
+-- ИДЕАЛЬНЫЙ ЦИКЛ ПОЛЕТА БЕЗ ANCHORED (Стабильный)
 -- ═══════════════════════════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
     for player, isFlying in pairs(flyingPlayers) do
@@ -607,14 +613,12 @@ RunService.Heartbeat:Connect(function()
                 end
                 
                 if moveDirection.Magnitude > 0 then
-                    rootPart.Anchored = false
                     moveDirection = moveDirection.Unit * speed
                     rootPart.Velocity = moveDirection
                     rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + moveDirection)
                 else
-                    -- Идеальная заморозка в воздухе при остановке
-                    rootPart.Velocity = Vector3.new(0, 0, 0)
-                    rootPart.Anchored = true
+                    -- Микро-импульс удерживает перса в воздухе и не вызывает ошибок NetworkOwnership
+                    rootPart.Velocity = Vector3.new(0, 0.05, 0)
                 end
             end
         end
