@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════
--- ОФИЦИАЛЬНАЯ АДМИН-ПАНЕЛЬ WISPMANE ДЛЯ 99 NIGHTS IN THE FOREST
+-- УЛЬТИМАТИВНАЯ АДМИН-ПАНЕЛЬ WISPMANE ДЛЯ 99 NIGHTS IN THE FOREST
 -- ═══════════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -228,7 +228,7 @@ local function createGUI(player)
             if rootPart then
                 rootPart.Velocity = Vector3.new(0, 0, 0)
             end
-            humanoid.PlatformStand = false
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
             humanoid.Sit = false
             
             if flyButton and flyButton.Parent then
@@ -237,8 +237,7 @@ local function createGUI(player)
             end
         else
             flyingPlayers[player] = true
-            flySpeeds[player] = 30
-            humanoid.PlatformStand = true
+            flySpeeds[player] = 40
             if flyButton and flyButton.Parent then
                 flyButton.Text = "🕊️ Выключить полет"
                 flyButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
@@ -246,7 +245,7 @@ local function createGUI(player)
         end
     end 
 
-    -- ФУНКЦИЯ 3: Идеальная вырубка всего леса с активацией дропа брёвен
+    -- ФУНКЦИЯ 3: Вырубка леса С ИММУНИТЕТОМ для Материнского Дерева
     local function chopAllTrees()
         local map = workspace:FindFirstChild("Map")
         local mapLandmarks = map and (map:FindFirstChild("Landmarks") or map:FindFirstChild("Ground") or map)
@@ -255,29 +254,32 @@ local function createGUI(player)
         chopButton.Text = "⏳ Вырубка..."
         chopButton.BackgroundColor3 = Color3.fromRGB(150, 100, 20)
         
-        -- Проходим по всем объектам карты, включая глубоко вложенные чанки
         for _, object in ipairs(mapLandmarks:GetDescendants()) do
-        if object:IsA("Model") and (object.Name == "Small Tree" or object.Name:find("Tree") or object.Name:find("Oak")) then
-    task.spawn(function()
-        -- Получаем доступ к серверному модулю здоровья дерева
-        local module = ServerStorage:FindFirstChild("LandmarkModules") and ServerStorage.LandmarkModules:FindFirstChild(object.Name)
-        
-        if module then
-            pcall(function()
-                local treeLogic = require(module)
-                -- Имитируем сокрушительный удар топора админа, чтобы сработал DropHandler
-                if typeof(treeLogic) == "function" then
-                    treeLogic(object, 999999)
-                elseif typeof(treeLogic) == "table" and treeLogic.Break then
-                    treeLogic:Break(object)
-                end
-            end)
-        end
-        
-        -- Принудительно обнуляем здоровье через атрибуты игры и убираем пустышку
-        object:SetAttribute("Health", 0)
-        object:Destroy()
-    end)
+            if object:IsA("Model") then
+                local objName = object.Name:lower()
+                -- ЗАЩИТА: Игнорируем гигантские, квестовые и материнские деревья (Mother, Giant, Fairy)
+if not objName:find("mother") and not objName:find("giant") and not objName:find("fairy") and not objName:find("house") then
+    if object.Name == "Small Tree" or object.Name:find("TreeBig") or (objName:find("tree") and not objName:find("leaf")) then
+        task.spawn(function()
+            local module = ServerStorage:FindFirstChild("LandmarkModules") and ServerStorage.LandmarkModules:FindFirstChild(object.Name)
+            
+            if module then
+                pcall(function()
+                    local treeLogic = require(module)
+                    
+                    if typeof(treeLogic) == "function" then
+                        treeLogic(object, 999999)
+                    elseif typeof(treeLogic) == "table" and treeLogic.Break then
+                        treeLogic:Break(object)
+                    end
+                end)
+            end
+            
+            object:SetAttribute("Health", 0)
+            object:Destroy()
+        end)
+    end
+end
 end
 end
 
@@ -289,7 +291,7 @@ chopButton.Text = "🪓 Вырубить весь лес"
 chopButton.BackgroundColor3 = Color3.fromRGB(230, 140, 10)
 end
 
--- ФУНКЦИЯ 4: Идеальный тотальный магнит брёвен и ресурсов по всей карте
+-- ФУНКЦИЯ 4: Магнит ресурсов С ИММУНИТЕТОМ для построек
 local function magnetAllLoot()
     local character = player.Character
     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
@@ -304,24 +306,24 @@ local function magnetAllLoot()
     local targetPosition = rootPart.Position + Vector3.new(0, -2, 0)
     local count = 0
     
-    -- Глобальный поиск брёвен, палок и лута во всех папках
     for _, item in ipairs(workspace:GetDescendants()) do
         local name = item.Name:lower()
         
         if item:IsA("Model") or item:IsA("BasePart") then
-            -- Фильтруем названия по ключевым ресурсам официальной игры
-            if name:find("log") or name:find("wood") or name:find("stick") or name:find("sapling") or name:find("berry") or name:find("item") or (item.Parent and item.Parent.Name == "Items") then
-                -- Защита от случайного притягивания живых деревьев или самого себя
-                if not item:FindFirstChild("Leave") and not item:FindFirstChild("Trunk") and item ~= rootPart and not item:IsDescendantOf(character) then
-                    pcall(function()
-                        if item:IsA("BasePart") then
-                            item.CFrame = CFrame.new(targetPosition)
-                        elseif item:IsA("Model") then
-                            item:PivotTo(CFrame.new(targetPosition))
-                        end
-                        
-                        count += 1
-                    end)
+            -- ЗАЩИТА: игнорируем элементы карты, лагерь, домики и квесты
+            if not item:IsDescendantOf(workspace.Map) and not name:find("camp") and not name:find("house") and not name:find("tent") and not name:find("fire") and not name:find("mother") and not name:find("tree") then
+                if name:find("log") or name:find("wood") or name:find("stick") or name:find("sapling") or name:find("berry") or name:find("item") or (item.Parent and item.Parent.Name == "Items") then
+                    if not item:FindFirstChild("Leave") and not item:FindFirstChild("Trunk") and item ~= rootPart and not item:IsDescendantOf(character) then
+                        pcall(function()
+                            if item:IsA("BasePart") then
+                                item.CFrame = CFrame.new(targetPosition)
+                            elseif item:IsA("Model") then
+                                item:PivotTo(CFrame.new(targetPosition))
+                            end
+                            
+                            count += 1
+                        end)
+                    end
                 end
             end
         end
@@ -454,7 +456,7 @@ closeGUI = function(player)
 end
 
 -- ═══════════════════════════════════════════════════════════════
--- СОЗДАНИЕ КНОПКИ WM (Позиция по центру экрана при запуске)
+-- СОЗДАНИЕ КНОПКИ WM
 -- ═══════════════════════════════════════════════════════════════
 local dragging = false
 local dragStart = nil
@@ -563,7 +565,7 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 -- ═══════════════════════════════════════════════════════════════
--- ИДЕАЛЬНЫЙ ЦИКЛ ПОЛЕТА БЕЗ ANCHORED (Стабильный)
+-- ИДЕАЛЬНЫЙ ПОЛЕТ: Персонаж летает ВЕРТИКАЛЬНО и не падает
 -- ═══════════════════════════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
     for player, isFlying in pairs(flyingPlayers) do
@@ -573,9 +575,10 @@ RunService.Heartbeat:Connect(function()
             local rootPart = character and character:FindFirstChild("HumanoidRootPart")
             
             if humanoid and rootPart then
-                humanoid.PlatformStand = true
+                -- Удерживаем персонажа в вертикальной позе через стейт физики
+                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
                 
-                local speed = flySpeeds[player] or 30
+                local speed = flySpeeds[player] or 40
                 local moveDirection = Vector3.new(0, 0, 0)
                 
                 local camera = workspace.CurrentCamera
@@ -615,10 +618,11 @@ RunService.Heartbeat:Connect(function()
                 if moveDirection.Magnitude > 0 then
                     moveDirection = moveDirection.Unit * speed
                     rootPart.Velocity = moveDirection
-                    rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + moveDirection)
+                    -- Поворачиваем только по горизонтали, чтобы тело не наклонялось вниз
+                    rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + Vector3.new(moveDirection.X, 0, moveDirection.Z))
                 else
-                    -- Микро-импульс удерживает перса в воздухе и не вызывает ошибок NetworkOwnership
-                    rootPart.Velocity = Vector3.new(0, 0.05, 0)
+                    -- Зависание на месте без изменения позы
+                    rootPart.Velocity = Vector3.new(0, 0.1, 0)
                 end
             end
         end
