@@ -1,29 +1,403 @@
--- Расширенный скрипт управления персонажем с GUI и полетом
+-- ═══════════════════════════════════════════════════════════════
+-- РАСШИРЕННЫЙ СКРИПТ УПРАВЛЕНИЯ ПЕРСОНАЖЕМ С GUI И ПОЛЕТОМ
+-- ═══════════════════════════════════════════════════════════════
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Переменные для управления полетом
-local flyingPlayers = {}
-local flySpeeds = {}
-local guiStates = {} -- Хранит состояние GUI для каждого игрока
+-- ═══════════════════════════════════════════════════════════════
+-- ГЛОБАЛЬНЫЕ ДАННЫЕ
+-- ═══════════════════════════════════════════════════════════════
 
--- Функция создания кнопки WM
+local flyingPlayers = {}     -- {[Player] = true/false}
+local flySpeeds = {}         -- {[Player] = speed}
+local playerGUIs = {}        -- {[Player] = {gui, wmButton, mainFrame}}
+local isGUIOpen = {}         -- {[Player] = true/false}
+
+-- ═══════════════════════════════════════════════════════════════
+-- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+-- ═══════════════════════════════════════════════════════════════
+
+local function createRoundedButton(parent, text, color, size, position)
+    local button = Instance.new("TextButton")
+    button.Size = size or UDim2.new(0, 200, 0, 45)
+    button.Position = position or UDim2.new(0.5, -100, 0, 0)
+    button.BackgroundColor3 = color or Color3.fromRGB(255, 80, 80)
+    button.BackgroundTransparency = 0.2
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 16
+    button.Font = Enum.Font.GothamBold
+    button.Text = text or "Кнопка"
+    button.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = button
+    
+    return button
+end
+
+local function createRoundedFrame(parent, size, position, color, transparency)
+    local frame = Instance.new("Frame")
+    frame.Size = size or UDim2.new(0, 350, 0, 300)
+    frame.Position = position or UDim2.new(0.5, -175, 0.5, -150)
+    frame.BackgroundColor3 = color or Color3.fromRGB(25, 25, 35)
+    frame.BackgroundTransparency = transparency or 0.15
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = frame
+    
+    return frame
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- СОЗДАНИЕ GUI
+-- ═══════════════════════════════════════════════════════════════
+
+local function createGUI(player)
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- Проверяем, есть ли уже GUI
+    if playerGUIs[player] then
+        return playerGUIs[player]
+    end
+    
+    -- ─── СОЗДАЕМ SCREENGUI ───
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SpeedFlyGUI"
+    screenGui.Parent = playerGui
+    screenGui.Enabled = false -- По умолчанию скрыт
+    
+    -- ─── ЗАТЕМНЕНИЕ ───
+    local background = Instance.new("Frame")
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    background.BackgroundTransparency = 0.5
+    background.Parent = screenGui
+    
+    -- ─── ГЛАВНЫЙ ФРЕЙМ ───
+    local mainFrame = createRoundedFrame(screenGui)
+    mainFrame.Name = "MainFrame"
+    mainFrame.BackgroundTransparency = 1 -- Скрыт для анимации
+    
+    -- Тень
+    local shadow = Instance.new("ImageLabel")
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.new(0, -10, 0, -10)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://1316044743"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.5
+    shadow.Parent = mainFrame
+    
+    -- ─── ЗАГОЛОВОК ───
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "⚡ Управление персонажем"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Center
+    title.Parent = mainFrame
+    
+    -- Разделитель
+    local divider = Instance.new("Frame")
+    divider.Size = UDim2.new(0.9, 0, 0, 2)
+    divider.Position = UDim2.new(0.05, 0, 0, 42)
+    divider.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    divider.BorderSizePixel = 0
+    divider.Parent = mainFrame
+    
+    -- ─── КНОПКА ЗАКРЫТИЯ ───
+    local closeButton = Instance.new("ImageButton")
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -40, 0, 10)
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+    closeButton.BackgroundTransparency = 0.3
+    closeButton.Image = "rbxassetid://1316044743"
+    closeButton.ImageColor3 = Color3.fromRGB(255, 80, 80)
+    closeButton.ImageTransparency = 0.5
+    closeButton.Parent = mainFrame
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(1, 0)
+    closeCorner.Parent = closeButton
+    
+    local closeText = Instance.new("TextLabel")
+    closeText.Size = UDim2.new(1, 0, 1, 0)
+    closeText.BackgroundTransparency = 1
+    closeText.Text = "✕"
+    closeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeText.TextSize = 18
+    closeText.Font = Enum.Font.GothamBold
+    closeText.Parent = closeButton
+    
+    -- ─── ПОЛЕ ВВОДА СКОРОСТИ ───
+    local speedInput = Instance.new("TextBox")
+    speedInput.Size = UDim2.new(0.7, 0, 0, 40)
+    speedInput.Position = UDim2.new(0.15, 0, 0, 60)
+    speedInput.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    speedInput.BackgroundTransparency = 0.3
+    speedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    speedInput.TextSize = 16
+    speedInput.Font = Enum.Font.Gotham
+    speedInput.PlaceholderText = "Введите скорость..."
+    speedInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 170)
+    speedInput.TextXAlignment = Enum.TextXAlignment.Center
+    speedInput.Parent = mainFrame
+    
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 8)
+    inputCorner.Parent = speedInput
+    
+    -- ─── КНОПКА УСТАНОВКИ СКОРОСТИ ───
+    local speedButton = createRoundedButton(mainFrame, "🚀 Установить скорость", Color3.fromRGB(255, 80, 80), 
+        UDim2.new(0.6, 0, 0, 45), UDim2.new(0.2, 0, 0, 115))
+    
+    -- ─── КНОПКА ПОЛЕТА ───
+    local flyButton = createRoundedButton(mainFrame, "🕊️ Включить полет", Color3.fromRGB(80, 150, 255),
+        UDim2.new(0.6, 0, 0, 45), UDim2.new(0.2, 0, 0, 175))
+    
+    -- ─── ИНДИКАТОР СКОРОСТИ ───
+    local speedDisplay = Instance.new("TextLabel")
+    speedDisplay.Size = UDim2.new(0.8, 0, 0, 25)
+    speedDisplay.Position = UDim2.new(0.1, 0, 0, 240)
+    speedDisplay.BackgroundTransparency = 1
+    speedDisplay.TextColor3 = Color3.fromRGB(150, 150, 170)
+    speedDisplay.TextSize = 14
+    speedDisplay.Font = Enum.Font.Gotham
+    speedDisplay.Text = "Текущая скорость: 16"
+    speedDisplay.TextXAlignment = Enum.TextXAlignment.Center
+    speedDisplay.Parent = mainFrame
+    
+    -- ─── СОХРАНЯЕМ ДАННЫЕ ───
+    local guiData = {
+        screenGui = screenGui,
+        mainFrame = mainFrame,
+        speedInput = speedInput,
+        speedButton = speedButton,
+        flyButton = flyButton,
+        speedDisplay = speedDisplay,
+        closeButton = closeButton,
+        background = background
+    }
+    
+    playerGUIs[player] = guiData
+    isGUIOpen[player] = false
+    
+    -- ─── ОБНОВЛЯЕМ ОТОБРАЖЕНИЕ СКОРОСТИ ───
+    local function updateSpeedDisplay()
+        local character = player.Character
+        if character then
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                speedDisplay.Text = "Текущая скорость: " .. tostring(math.round(humanoid.WalkSpeed))
+            end
+        end
+    end
+    
+    -- ─── ФУНКЦИЯ УСТАНОВКИ СКОРОСТИ ───
+    local function setSpeed(speed)
+        local character = player.Character
+        if not character then return false end
+        
+        local humanoid = character:FindFirstChild("Humanoid")
+        if not humanoid then return false end
+        
+        local newSpeed = tonumber(speed)
+        if not newSpeed or newSpeed < 0 then return false end
+        
+        humanoid.WalkSpeed = newSpeed
+        updateSpeedDisplay()
+        return true
+    end
+    
+    -- ─── ФУНКЦИЯ ПОЛЕТА ───
+    local function toggleFly()
+        local character = player.Character
+        if not character then return end
+        
+        local humanoid = character:FindFirstChild("Humanoid")
+        if not humanoid then return end
+        
+        if flyingPlayers[player] then
+            -- Выключаем полет
+            flyingPlayers[player] = nil
+            flySpeeds[player] = nil
+            
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                rootPart.Velocity = Vector3.new(0, 0, 0)
+                rootPart.Anchored = false
+            end
+            
+            humanoid.PlatformStand = false
+            humanoid.Sit = false
+            
+            flyButton.Text = "🕊️ Включить полет"
+            flyButton.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
+        else
+            -- Включаем полет
+            flyingPlayers[player] = true
+            flySpeeds[player] = 10
+            
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                rootPart.Velocity = Vector3.new(0, 0, 0)
+                rootPart.Anchored = false
+            end
+            
+            humanoid.PlatformStand = true
+            
+            flyButton.Text = "🕊️ Выключить полет"
+            flyButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+        end
+    end
+    
+    -- ─── ОБРАБОТЧИКИ КНОПОК ───
+    speedButton.MouseButton1Click:Connect(function()
+        local speedValue = speedInput.Text
+        if setSpeed(speedValue) then
+            speedButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            speedButton.Text = "✅ Скорость изменена!"
+            task.wait(0.8)
+            speedButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+            speedButton.Text = "🚀 Установить скорость"
+        else
+            speedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+            speedButton.Text = "❌ Ошибка!"
+            task.wait(0.8)
+            speedButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+            speedButton.Text = "🚀 Установить скорость"
+        end
+    end)
+    
+    flyButton.MouseButton1Click:Connect(toggleFly)
+    
+    -- ─── ЗАКРЫТИЕ GUI ───
+    closeButton.MouseButton1Click:Connect(function()
+        closeGUI(player)
+    end)
+    
+    -- ─── ОБНОВЛЯЕМ ПРИ ПОЯВЛЕНИИ ПЕРСОНАЖА ───
+    player.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        updateSpeedDisplay()
+        
+        -- Если полет был включен, но персонаж пересоздался
+        if flyingPlayers[player] then
+            task.wait(0.5)
+            toggleFly() -- Переключаем заново
+        end
+    end)
+    
+    -- Обновляем при запуске
+    task.wait(0.5)
+    updateSpeedDisplay()
+    
+    return guiData
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- ФУНКЦИИ ОТКРЫТИЯ/ЗАКРЫТИЯ GUI
+-- ═══════════════════════════════════════════════════════════════
+
+local function openGUI(player)
+    local guiData = playerGUIs[player]
+    if not guiData then
+        guiData = createGUI(player)
+    end
+    
+    if isGUIOpen[player] then return end
+    
+    local screenGui = guiData.screenGui
+    local mainFrame = guiData.mainFrame
+    local wmButton = player.PlayerGui:FindFirstChild("WMButton")
+    
+    -- Показываем GUI
+    screenGui.Enabled = true
+    isGUIOpen[player] = true
+    
+    -- Анимация появления
+    mainFrame.BackgroundTransparency = 1
+    mainFrame.Size = UDim2.new(0, 0, 0, 0)
+    
+    TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0.15,
+        Size = UDim2.new(0, 350, 0, 300)
+    }):Play()
+    
+    -- Скрываем кнопку WM
+    if wmButton then
+        TweenService:Create(wmButton, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1
+        }):Play()
+        task.wait(0.3)
+        wmButton.Visible = false
+    end
+end
+
+local function closeGUI(player)
+    local guiData = playerGUIs[player]
+    if not guiData then return end
+    if not isGUIOpen[player] then return end
+    
+    local screenGui = guiData.screenGui
+    local mainFrame = guiData.mainFrame
+    local wmButton = player.PlayerGui:FindFirstChild("WMButton")
+    
+    -- Анимация закрытия
+    TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 0, 0, 0)
+    }):Play()
+    
+    task.wait(0.3)
+    screenGui.Enabled = false
+    isGUIOpen[player] = false
+    
+    -- Показываем кнопку WM
+    if wmButton then
+        wmButton.Visible = true
+        TweenService:Create(wmButton, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 70, 0, 70),
+            BackgroundTransparency = 0.2
+        }):Play()
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- СОЗДАНИЕ КНОПКИ WM
+-- ═══════════════════════════════════════════════════════════════
+
 local function createWMButton(player)
     local playerGui = player:WaitForChild("PlayerGui")
     
-    -- Кнопка WM
+    -- Удаляем старую кнопку, если есть
+    local oldButton = playerGui:FindFirstChild("WMButton")
+    if oldButton then oldButton:Destroy() end
+    
+    -- Создаем новую кнопку
     local wmButton = Instance.new("ImageButton")
     wmButton.Name = "WMButton"
     wmButton.Size = UDim2.new(0, 70, 0, 70)
     wmButton.Position = UDim2.new(0.5, -35, 0.5, -35)
     wmButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
     wmButton.BackgroundTransparency = 0.2
-    wmButton.Image = "rbxassetid://1316044743" -- Круглая тень
+    wmButton.Image = "rbxassetid://1316044743"
     wmButton.ImageColor3 = Color3.fromRGB(255, 100, 100)
     wmButton.ImageTransparency = 0.5
     wmButton.ZIndex = 100
+    wmButton.Visible = true
     wmButton.Parent = playerGui
     
     -- Сглаживание
@@ -31,10 +405,9 @@ local function createWMButton(player)
     wmCorner.CornerRadius = UDim.new(1, 0)
     wmCorner.Parent = wmButton
     
-    -- Текст WM
+    -- Текст
     local wmText = Instance.new("TextLabel")
     wmText.Size = UDim2.new(1, 0, 1, 0)
-    wmText.Position = UDim2.new(0, 0, 0, 0)
     wmText.BackgroundTransparency = 1
     wmText.Text = "WM"
     wmText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -50,7 +423,7 @@ local function createWMButton(player)
     })
     pulse:Play()
     
-    -- Перетаскивание кнопки
+    -- ─── ПЕРЕТАСКИВАНИЕ ───
     local dragging = false
     local dragInput = nil
     local dragStart = nil
@@ -82,340 +455,58 @@ local function createWMButton(player)
         end
     end)
     
+    -- ─── ОТКРЫТИЕ GUI ───
+    wmButton.MouseButton1Click:Connect(function()
+        openGUI(player)
+    end)
+    
     return wmButton
 end
 
--- Функция создания GUI
-local function createGUI(player)
-    local playerGui = player:WaitForChild("PlayerGui")
-    
-    -- Проверяем, есть ли уже GUI
-    if playerGui:FindFirstChild("SpeedFlyGUI") then
-        return
-    end
-    
-    -- Создаем ScreenGui
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "SpeedFlyGUI"
-    screenGui.Parent = playerGui
-    
-    -- Затемнение фона
-    local background = Instance.new("Frame")
-    background.Size = UDim2.new(1, 0, 1, 0)
-    background.Position = UDim2.new(0, 0, 0, 0)
-    background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    background.BackgroundTransparency = 0.5
-    background.Parent = screenGui
-    
-    -- Главный фрейм
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 350, 0, 300)
-    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -150)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    mainFrame.BackgroundTransparency = 0.15
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = screenGui
-    
-    -- Сглаживание углов
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = mainFrame
-    
-    -- Тень
-    local shadow = Instance.new("ImageLabel")
-    shadow.Size = UDim2.new(1, 20, 1, 20)
-    shadow.Position = UDim2.new(0, -10, 0, -10)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://1316044743"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.5
-    shadow.Parent = mainFrame
-    
-    -- Кнопка закрытия
-    local closeButton = Instance.new("ImageButton")
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -40, 0, 10)
-    closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-    closeButton.BackgroundTransparency = 0.3
-    closeButton.Image = "rbxassetid://1316044743"
-    closeButton.ImageColor3 = Color3.fromRGB(255, 80, 80)
-    closeButton.ImageTransparency = 0.5
-    closeButton.Parent = mainFrame
-    
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(1, 0)
-    closeCorner.Parent = closeButton
-    
-    local closeText = Instance.new("TextLabel")
-    closeText.Size = UDim2.new(1, 0, 1, 0)
-    closeText.Position = UDim2.new(0, 0, 0, 0)
-    closeText.BackgroundTransparency = 1
-    closeText.Text = "✕"
-    closeText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeText.TextSize = 18
-    closeText.Font = Enum.Font.GothamBold
-    closeText.Parent = closeButton
-    
-    -- Заголовок
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 40)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = "⚡ Управление персонажем"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 18
-    title.Font = Enum.Font.GothamBold
-    title.TextXAlignment = Enum.TextXAlignment.Center
-    title.Parent = mainFrame
-    
-    -- Разделитель
-    local divider = Instance.new("Frame")
-    divider.Size = UDim2.new(0.9, 0, 0, 2)
-    divider.Position = UDim2.new(0.05, 0, 0, 42)
-    divider.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-    divider.BorderSizePixel = 0
-    divider.Parent = mainFrame
-    
-    -- Поле для ввода скорости
-    local speedInput = Instance.new("TextBox")
-    speedInput.Size = UDim2.new(0.7, 0, 0, 40)
-    speedInput.Position = UDim2.new(0.15, 0, 0, 60)
-    speedInput.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    speedInput.BackgroundTransparency = 0.3
-    speedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-    speedInput.TextSize = 16
-    speedInput.Font = Enum.Font.Gotham
-    speedInput.PlaceholderText = "Введите скорость..."
-    speedInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 170)
-    speedInput.TextXAlignment = Enum.TextXAlignment.Center
-    speedInput.Parent = mainFrame
-    
-    -- Сглаживание для поля ввода
-    local inputCorner = Instance.new("UICorner")
-    inputCorner.CornerRadius = UDim.new(0, 8)
-    inputCorner.Parent = speedInput
-    
-    -- Кнопка установки скорости
-    local speedButton = Instance.new("TextButton")
-    speedButton.Size = UDim2.new(0.6, 0, 0, 45)
-    speedButton.Position = UDim2.new(0.2, 0, 0, 115)
-    speedButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-    speedButton.BackgroundTransparency = 0.2
-    speedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    speedButton.TextSize = 16
-    speedButton.Font = Enum.Font.GothamBold
-    speedButton.Text = "🚀 Установить скорость"
-    speedButton.Parent = mainFrame
-    
-    -- Сглаживание для кнопки
-    local speedButtonCorner = Instance.new("UICorner")
-    speedButtonCorner.CornerRadius = UDim.new(0, 8)
-    speedButtonCorner.Parent = speedButton
-    
-    -- Кнопка полета
-    local flyButton = Instance.new("TextButton")
-    flyButton.Size = UDim2.new(0.6, 0, 0, 45)
-    flyButton.Position = UDim2.new(0.2, 0, 0, 175)
-    flyButton.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
-    flyButton.BackgroundTransparency = 0.2
-    flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    flyButton.TextSize = 16
-    flyButton.Font = Enum.Font.GothamBold
-    flyButton.Text = "🕊️ Включить полет"
-    flyButton.Parent = mainFrame
-    
-    -- Сглаживание для кнопки
-    local flyButtonCorner = Instance.new("UICorner")
-    flyButtonCorner.CornerRadius = UDim.new(0, 8)
-    flyButtonCorner.Parent = flyButton
-    
-    -- Индикатор скорости
-    local speedDisplay = Instance.new("TextLabel")
-    speedDisplay.Size = UDim2.new(0.8, 0, 0, 25)
-    speedDisplay.Position = UDim2.new(0.1, 0, 0, 240)
-    speedDisplay.BackgroundTransparency = 1
-    speedDisplay.TextColor3 = Color3.fromRGB(150, 150, 170)
-    speedDisplay.TextSize = 14
-    speedDisplay.Font = Enum.Font.Gotham
-    speedDisplay.Text = "Текущая скорость: 16"
-    speedDisplay.TextXAlignment = Enum.TextXAlignment.Center
-    speedDisplay.Parent = mainFrame
-    
-    -- Анимация появления
-    mainFrame.BackgroundTransparency = 1
-    mainFrame.Size = UDim2.new(0, 0, 0, 0)
-    
-    TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 0.15,
-        Size = UDim2.new(0, 350, 0, 300)
-    }):Play()
-    
-    -- Функция обновления скорости
-    local function setSpeed(speed)
-        local character = player.Character
-        if character then
-            local humanoid = character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.WalkSpeed = tonumber(speed) or 16
-                speedDisplay.Text = "Текущая скорость: " .. tostring(humanoid.WalkSpeed)
-                return true
-            end
-        end
-        return false
-    end
-    
-    -- Функция полета
-    local function toggleFly()
-        local character = player.Character
-        if not character then return end
-        
-        local humanoid = character:FindFirstChild("Humanoid")
-        if not humanoid then return end
-        
-        local isFlying = flyingPlayers[player]
-        
-        if isFlying then
-            -- Выключаем полет
-            flyingPlayers[player] = nil
-            flySpeeds[player] = nil
-            
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                rootPart.Velocity = Vector3.new(0, 0, 0)
-                rootPart.Anchored = false
-            end
-            
-            humanoid.PlatformStand = false
-            
-            flyButton.Text = "🕊️ Включить полет"
-            flyButton.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
-            
-        else
-            -- Включаем полет
-            flyingPlayers[player] = true
-            flySpeeds[player] = 10
-            
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                rootPart.Velocity = Vector3.new(0, 0, 0)
-                rootPart.Anchored = true
-            end
-            
-            humanoid.PlatformStand = true
-            
-            flyButton.Text = "🕊️ Выключить полет"
-            flyButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-        end
-    end
-    
-    -- Обработчики кнопок
-    speedButton.MouseButton1Click:Connect(function()
-        local speedValue = tonumber(speedInput.Text)
-        if speedValue then
-            if setSpeed(speedValue) then
-                speedButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                speedButton.Text = "✅ Скорость изменена!"
-                wait(0.8)
-                speedButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-                speedButton.Text = "🚀 Установить скорость"
-            else
-                speedButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                speedButton.Text = "❌ Ошибка!"
-                wait(0.8)
-                speedButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-                speedButton.Text = "🚀 Установить скорость"
-            end
-        else
-            speedButton.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-            speedButton.Text = "⚠️ Введите число!"
-            wait(0.8)
-            speedButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-            speedButton.Text = "🚀 Установить скорость"
-        end
-    end)
-    
-    flyButton.MouseButton1Click:Connect(toggleFly)
-    
-    -- Кнопка закрытия
-    closeButton.MouseButton1Click:Connect(function()
-        -- Закрываем GUI
-        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(0, 0, 0, 0)
-        }):Play()
-        
-        wait(0.3)
-        screenGui.Enabled = false
-        
-        -- Показываем кнопку WM
-        local wmButton = playerGui:FindFirstChild("WMButton")
-        if wmButton then
-            wmButton.Visible = true
-            TweenService:Create(wmButton, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(0, 70, 0, 70),
-                BackgroundTransparency = 0.2
-            }):Play()
-        end
-    end)
-    
-    -- Создаем кнопку WM если её нет
-    if not playerGui:FindFirstChild("WMButton") then
-        local wmButton = createWMButton(player)
-        
-        wmButton.MouseButton1Click:Connect(function()
-            -- Открываем GUI
-            screenGui.Enabled = true
-            
-            TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                BackgroundTransparency = 0.15,
-                Size = UDim2.new(0, 350, 0, 300)
-            }):Play()
-            
-            -- Скрываем кнопку WM
-            TweenService:Create(wmButton, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-                Size = UDim2.new(0, 0, 0, 0),
-                BackgroundTransparency = 1
-            }):Play()
-            
-            wait(0.3)
-            wmButton.Visible = false
-        end)
-    end
-    
-    -- Обновляем отображение скорости
-    local character = player.Character
-    if character then
-        local humanoid = character:FindFirstChild("Humanoid")
-        if humanoid then
-            speedDisplay.Text = "Текущая скорость: " .. tostring(humanoid.WalkSpeed)
-        end
-    end
-    
-    return {
-        speedButton = speedButton,
-        flyButton = flyButton,
-        speedInput = speedInput,
-        speedDisplay = speedDisplay,
-        mainFrame = mainFrame,
-        screenGui = screenGui
-    }
-end
+-- ═══════════════════════════════════════════════════════════════
+-- ИНИЦИАЛИЗАЦИЯ ДЛЯ ВСЕХ ИГРОКОВ
+-- ═══════════════════════════════════════════════════════════════
 
--- Подключаем GUI для всех игроков
-for _, player in ipairs(Players:GetPlayers()) do
+local function setupPlayer(player)
+    -- Создаем GUI
     createGUI(player)
+    
+    -- Создаем кнопку WM
+    createWMButton(player)
+    
+    -- Открываем GUI при первом входе
+    task.wait(0.5)
+    openGUI(player)
 end
 
+-- Для уже существующих игроков
+for _, player in ipairs(Players:GetPlayers()) do
+    task.spawn(function()
+        setupPlayer(player)
+    end)
+end
+
+-- Для новых игроков
 Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function()
-        wait(0.5)
-        if not player.PlayerGui:FindFirstChild("SpeedFlyGUI") then
-            createGUI(player)
+        task.wait(0.5)
+        -- Если GUI нет - создаем
+        if not playerGUIs[player] then
+            setupPlayer(player)
         end
     end)
+    
+    -- Если игрок уже имеет персонажа
+    if player.Character then
+        task.wait(0.5)
+        setupPlayer(player)
+    end
 end)
 
--- Основной цикл управления полетом
+-- ═══════════════════════════════════════════════════════════════
+-- ОСНОВНОЙ ЦИКЛ ПОЛЕТА
+-- ═══════════════════════════════════════════════════════════════
+
 RunService.Heartbeat:Connect(function()
     for player, isFlying in pairs(flyingPlayers) do
         if isFlying then
@@ -425,45 +516,123 @@ RunService.Heartbeat:Connect(function()
                 local rootPart = character:FindFirstChild("HumanoidRootPart")
                 
                 if humanoid and rootPart then
+                    -- Настройка полета
                     humanoid.PlatformStand = true
-                    rootPart.Anchored = true
+                    rootPart.Anchored = false
                     
-                    -- Управление полетом
-                    local moveVector = Vector3.new(0, 0, 0)
+                    -- Получаем скорость
                     local speed = flySpeeds[player] or 10
                     
-                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                        moveVector = moveVector + rootPart.CFrame.LookVector * speed
-                    end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                        moveVector = moveVector - rootPart.CFrame.LookVector * speed
-                    end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                        moveVector = moveVector - rootPart.CFrame.RightVector * speed
-                    end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                        moveVector = moveVector + rootPart.CFrame.RightVector * speed
-                    end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                        moveVector = moveVector + Vector3.new(0, speed, 0)
-                    end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                        moveVector = moveVector - Vector3.new(0, speed, 0)
+                    -- Вычисляем направление движения
+                    local moveDirection = Vector3.new(0, 0, 0)
+                    local camera = workspace.CurrentCamera
+                    
+                    if camera then
+                        local forward = camera.CFrame.LookVector
+                        local right = camera.CFrame.RightVector
+                        
+                        -- Убираем вертикальную составляющую для горизонтального движения
+                        forward = Vector3.new(forward.X, 0, forward.Z).Unit
+                        right = Vector3.new(right.X, 0, right.Z).Unit
+                        
+                        -- WASD
+                        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                            moveDirection = moveDirection + forward
+                        end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                            moveDirection = moveDirection - forward
+                        end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                            moveDirection = moveDirection - right
+                        end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                            moveDirection = moveDirection + right
+                        end
+                        
+                        -- Вертикаль
+                        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                            moveDirection = moveDirection + Vector3.new(0, 1, 0)
+                        end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                            moveDirection = moveDirection - Vector3.new(0, 1, 0)
+                        end
                     end
                     
-                    rootPart.Velocity = moveVector
+                    -- Нормализуем и применяем скорость
+                    if moveDirection.Magnitude > 0 then
+                        moveDirection = moveDirection.Unit * speed
+                        rootPart.Velocity = moveDirection
+                    else
+                        rootPart.Velocity = Vector3.new(0, 0, 0)
+                    end
+                    
+                    -- Поворот в сторону движения (опционально)
+                    if moveDirection.Magnitude > 0.1 then
+                        local lookAt = rootPart.Position + moveDirection
+                        local newCFrame = CFrame.lookAt(rootPart.Position, lookAt)
+                        rootPart.CFrame = CFrame.new(rootPart.Position, lookAt)
+                    end
                 end
             else
                 -- Если персонаж исчез - выключаем полет
                 flyingPlayers[player] = nil
                 flySpeeds[player] = nil
+                
+                -- Обновляем кнопку
+                local guiData = playerGUIs[player]
+                if guiData then
+                    guiData.flyButton.Text = "🕊️ Включить полет"
+                    guiData.flyButton.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
+                end
             end
         end
     end
 end)
 
--- Очистка при выходе игрока
+-- ═══════════════════════════════════════════════════════════════
+-- ОЧИСТКА ПРИ ВЫХОДЕ
+-- ═══════════════════════════════════════════════════════════════
+
 Players.PlayerRemoving:Connect(function(player)
     flyingPlayers[player] = nil
     flySpeeds[player] = nil
+    playerGUIs[player] = nil
+    isGUIOpen[player] = nil
 end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- ГОРЯЧИЕ КЛАВИШИ
+-- ═══════════════════════════════════════════════════════════════
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    -- F для открытия/закрытия GUI
+    if input.KeyCode == Enum.KeyCode.F then
+        local player = Players.LocalPlayer
+        if player then
+            if isGUIOpen[player] then
+                closeGUI(player)
+            else
+                openGUI(player)
+            end
+        end
+    end
+    
+    -- X для включения/выключения полета
+    if input.KeyCode == Enum.KeyCode.X then
+        local player = Players.LocalPlayer
+        if player then
+            local guiData = playerGUIs[player]
+            if guiData then
+                guiData.flyButton:Activate()
+            end
+        end
+    end
+end)
+
+print("✅ Скрипт управления персонажем успешно загружен!")
+print("📌 F - открыть/закрыть меню")
+print("📌 X - включить/выключить полет")
+print("📌 WASD - движение в полете")
+print("📌 Пробел - вверх, Shift - вниз")
