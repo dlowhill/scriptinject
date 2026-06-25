@@ -44,12 +44,12 @@ end
 
 local function createRoundedFrame(parent, size, position, color, transparency)
     local frame = Instance.new("Frame")
-    frame.Size = size or UDim2.new(0, 350, 0, 500) -- Высота увеличена до 500 под 5 кнопок
+    frame.Size = size or UDim2.new(0, 350, 0, 500) 
     frame.Position = position or UDim2.new(0.5, -175, 0.5, -250)
     frame.BackgroundColor3 = color or Color3.fromRGB(25, 25, 35)
     frame.BackgroundTransparency = transparency or 0.15
     frame.BorderSizePixel = 0
-    frame.Parent = frame
+    frame.Parent = parent -- ФИКС ОШИБКИ: Родитель теперь устанавливается правильно!
     
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 12)
@@ -154,23 +154,18 @@ local function createGUI(player)
     inputCorner.CornerRadius = UDim.new(0, 8)
     inputCorner.Parent = speedInput
     
-    -- Кнопка 1: Скорость
     local speedButton = createRoundedButton(mainFrame, "🚀 Установить скорость", Color3.fromRGB(255, 100, 100), 
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 110))
     
-    -- Кнопка 2: Полёт
     local flyButton = createRoundedButton(mainFrame, "🕊️ Включить полет", Color3.fromRGB(80, 150, 255),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 165))
         
-    -- Кнопка 3: Массовая вырубка леса
     local chopButton = createRoundedButton(mainFrame, "🪓 Вырубить весь лес", Color3.fromRGB(230, 140, 10),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 220))
         
-    -- Кнопка 4: Магнит ресурсов
     local magnetButton = createRoundedButton(mainFrame, "🧲 Притянуть весь лут", Color3.fromRGB(40, 180, 130),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 275))
 
-    -- Кнопка 5: Пропуск дня (НОВАЯ)
     local skipDayButton = createRoundedButton(mainFrame, "⌛ Пропустить день", Color3.fromRGB(140, 90, 210),
         UDim2.new(0.8, 0, 0, 42), UDim2.new(0.1, 0, 0, 330))
     
@@ -258,13 +253,10 @@ local function createGUI(player)
 
     local function chopAllTrees()
         local map = workspace:FindFirstChild("Map")
-local mapLandmarks = map and (map:FindFirstChild("Landmarks") or map:FindFirstChild("Ground") or map)
-
-if not mapLandmarks then
-    return
-end
-
-chopButton.Text = "⏳ Вырубка..."
+        local mapLandmarks = map and (map:FindFirstChild("Landmarks") or map:FindFirstChild("Ground") or map)
+        if not mapLandmarks then return end
+        
+        chopButton.Text = "⏳ Вырубка..."
 chopButton.BackgroundColor3 = Color3.fromRGB(150, 100, 20)
 
 for _, object in ipairs(mapLandmarks:GetDescendants()) do
@@ -348,21 +340,17 @@ local function magnetAllLoot()
     magnetButton.BackgroundColor3 = Color3.fromRGB(40, 180, 130)
 end
 
--- ФУНКЦИЯ 5: Моментальный пропуск дней и перекрутка игрового времени
 local function skipOneDay()
     skipDayButton.Text = "⏳ Перемотка времени..."
     skipDayButton.BackgroundColor3 = Color3.fromRGB(100, 60, 160)
     
-    -- 1. Крутим часы в Lighting, чтобы мгновенно наступило утро следующего дня
     pcall(function()
-        Lighting.ClockTime = 6 -- Устанавливаем 6 часов утра
+        Lighting.ClockTime = 6
     end)
     
-    -- 2. Сканируем глобальные атрибуты игры и прибавляем день
     local success = false
     
     pcall(function()
-        -- Ищем во всех возможных корневых местах, где игра хранит номер дня
         local targets = {workspace, ReplicatedStorage, ServerStorage}
         
         for _, target in ipairs(targets) do
@@ -375,7 +363,6 @@ local function skipOneDay()
             end
         end
         
-        -- Ищем IntValue / NumberValue объекты с названиями Day или Time
         for _, val in ipairs(workspace:GetDescendants()) do
             if (val:IsA("IntValue") or val:IsA("NumberValue")) and (val.Name == "Day" or val.Name == "CurrentDay") then
                 val.Value = val.Value + 1
@@ -397,7 +384,6 @@ local function skipOneDay()
         skipDayButton.Text = "✅ День успешно пропущен!"
         skipDayButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
     else
-        -- Если игра использует сугубо внутренние скрипты, время суток всё равно сдвинется на утро
         skipDayButton.Text = "🌅 Время сдвинуто на утро!"
         skipDayButton.BackgroundColor3 = Color3.fromRGB(0, 160, 200)
     end
